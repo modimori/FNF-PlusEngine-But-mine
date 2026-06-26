@@ -1,22 +1,32 @@
-name: Delete All Tags and Releases
+name: Nuke All Tags and Releases
 
 on:
-  workflow_dispatch: # Allows you to press a button to run this manually
+  workflow_dispatch: # Gives you a manual "Run workflow" button
 
 jobs:
-  clear-tags:
+  nuke-everything:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # Crucial permission to allow deletion
     steps:
-      - name: Fetch and Delete All Releases and Tags
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Force Delete All Releases and Tags
         run: |
-          # Fetch every release tag name, loop through them, and delete both the release and its tag
-          gh release list --limit 1000 | cut -f3 | while read -r release_tag; do
-            if [ -n "$release_tag" ]; then
-              echo "Deleting release and tag: $release_tag"
-              gh release delete -y "$release_tag" --cleanup-tag
+          echo "Fetching releases..."
+          # Uses the GitHub CLI tool to pull your releases, strips the text, and forces a cleanup
+          gh release list --limit 1000 | awk '{print $3}' | while read -r tag; do
+            if [ -n "$tag" ]; then
+              echo "Nuking release and tag: $tag"
+              gh release delete "$tag" --yes --cleanup-tag || true
             fi
           done
+
+          echo "Fetching any remaining ghost tags..."
+          # If there are tags without releases, this targets them directly
+          gh api repos/${{ github.repository }}/tags --jq '.[].name' | while read -r ghost_tag; do
+            if [ -n "$ghost_tag" ]; then
+              echo "Nuking standalone tag: $ghost_tag"
+              gh api -X DELETE repos/${{ github.repository }}/git/refs/tags/$ghost_tag || true
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
