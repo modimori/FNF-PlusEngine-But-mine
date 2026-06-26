@@ -109,7 +109,6 @@ jobs:
       - name: Skip SScript setup mode
         run: |
           echo -n 'oy9:showMacroty8:loopCosti25y10:includeAllfg' > ~/settings.cocoa
-
           cat ~/settings.cocoa
       - name: Create Version Tag
         run: echo "${{github.run_id}}" > VERSION
@@ -184,7 +183,7 @@ jobs:
         uses: actions/upload-artifact@v4.3.4
         with:
           name: androidBuild
-          path: export/release/android/bin
+          path: export/release/android/bin/app/build/outputs/apk/release
 
   buildIOS:
     if: contains(github.event.head_commit.message, 'wd')
@@ -221,3 +220,46 @@ jobs:
         with:
           name: iOSBuild
           path: export/release/ios/build/Release-iphoneos
+
+  createRelease:
+    needs: [buildLinux, buildWindows, buildMac, buildAndroid, buildIOS]
+    if: contains(github.event.head_commit.message, 'wd')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Organize and Compress Desktop Builds
+        run: |
+          zip -r Linux-Engine.zip ./artifacts/linuxBuild
+          zip -r Windows-Engine.zip ./artifacts/windowsBuild
+          zip -r Mac-Engine.zip ./artifacts/macBuild
+
+      - name: Isolate Mobile Packages
+        run: |
+          # Find the compiled .apk file and move it out to the root workspace
+          find ./artifacts/androidBuild -name "*.apk" -exec cp {} ./Engine-Android.apk \;
+          
+          # Find the compiled iOS bundle app directory, structure it into a Payload folder, and map it to an .ipa file
+          mkdir -p Payload
+          find ./artifacts/iOSBuild -name "*.app" -exec cp -r {} ./Payload/ \;
+          zip -r Engine-iOS.ipa ./Payload
+
+      - name: Publish to Releases Tab
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v4.0.0-${{ github.run_id }}"
+          name: "Engine Build v4.0.0-${{ github.run_id }}"
+          body: "Automated engine compilation build. Mobile platforms provide direct installation files."
+          draft: false
+          prerelease: false
+          files: |
+            Linux-Engine.zip
+            Windows-Engine.zip
+            Mac-Engine.zip
+            Engine-Android.apk
+            Engine-iOS.ipa
