@@ -98,7 +98,8 @@ jobs:
       - name: Zip Files
         if: always()
         run: |
-          mkdir -p export/release/windows/bin
+          New-Item -ItemType Directory -Force -Path export/release/windows/bin
+          New-Item -ItemType File -Force -Path export/release/windows/bin/placeholder.txt
           Compress-Archive -Path export/release/windows/bin/* -DestinationPath Windows-Engine.zip -Force
         shell: pwsh
         continue-on-error: true
@@ -300,5 +301,3 @@ jobs:
           tag_name: "v4.0.0-${{ github.run_id }}"
           name: "Engine Build v4.0.0-${{ github.run_id }}"
           draft: false
-          prerelease: false
-          files: Engine-iOS.ipa
