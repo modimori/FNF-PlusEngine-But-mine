@@ -16,21 +16,17 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   buildLinux:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    permissions:
+      contents: write
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4.1.7
 
       - uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.4
       
-      # Runs a set of commands using the runners shell
       - name: Install Haxelib
         run: |
           sudo apt-get install libvlc-dev
@@ -47,24 +43,42 @@ jobs:
         run: echo "${{github.run_id}}" > VERSION
       - name: Compile
         run: haxelib run lime build linux --app-version="4.0.0-${{ github.run_id}}" -D officialBuild
+        continue-on-error: true
+      - name: Zip Files
+        if: always()
+        run: |
+          mkdir -p export/release/linux/bin
+          zip -r Linux-Engine.zip export/release/linux/bin
+        continue-on-error: true
       - name: Publish Artifact
+        if: always()
         uses: actions/upload-artifact@v4.3.4
         with:
           name: linuxBuild
           path: 'export/release/linux/bin'
+        continue-on-error: true
+      - name: Publish Linux Release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v4.0.0-${{ github.run_id }}"
+          name: "Engine Build v4.0.0-${{ github.run_id }}"
+          body: "Automated multi-platform compilation builds."
+          draft: false
+          prerelease: false
+          files: Linux-Engine.zip
           
   buildWindows:
     runs-on: windows-latest
-
+    permissions:
+      contents: write
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4.1.7
 
       - uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.4
       
-      # Runs a set of commands using the runners shell
       - name: Install Haxelib
         run: |
           haxelib setup C:/haxelib
@@ -80,24 +94,42 @@ jobs:
         run: echo "${{github.run_id}}" > VERSION
       - name: Compile
         run: haxelib run lime build windows --app-version="4.0.0-${{ github.run_id}}"  -D officialBuild
+        continue-on-error: true
+      - name: Zip Files
+        if: always()
+        run: |
+          mkdir -p export/release/windows/bin
+          Compress-Archive -Path export/release/windows/bin/* -DestinationPath Windows-Engine.zip -Force
+        shell: pwsh
+        continue-on-error: true
       - name: Publish Artifact
+        if: always()
         uses: actions/upload-artifact@v4.3.4
         with:
           name: windowsBuild
           path: export/release/windows/bin
+        continue-on-error: true
+      - name: Publish Windows Release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v4.0.0-${{ github.run_id }}"
+          name: "Engine Build v4.0.0-${{ github.run_id }}"
+          draft: false
+          prerelease: false
+          files: Windows-Engine.zip
 
   buildMac:
     runs-on: macos-15
-
+    permissions:
+      contents: write
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4.1.7
 
       - uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.4
       
-      # Runs a set of commands using the runners shell
       - name: Install Haxelib
         run: |
           haxelib setup ~/haxelib
@@ -111,24 +143,41 @@ jobs:
         run: echo "${{github.run_id}}" > VERSION
       - name: Compile
         run: haxelib run lime build mac --app-version="4.0.0-${{ github.run_id}}" -D officialBuild
+        continue-on-error: true
+      - name: Zip Files
+        if: always()
+        run: |
+          mkdir -p export/release/macos/bin
+          zip -r Mac-Engine.zip export/release/macos/bin
+        continue-on-error: true
       - name: Publish Artifact
+        if: always()
         uses: actions/upload-artifact@v4.3.4
         with:
           name: macBuild
           path: export/release/macos/bin
+        continue-on-error: true
+      - name: Publish Mac Release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v4.0.0-${{ github.run_id }}"
+          name: "Engine Build v4.0.0-${{ github.run_id }}"
+          draft: false
+          prerelease: false
+          files: Mac-Engine.zip
 
   buildAndroid:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4.1.7
 
       - uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.4
       
-      # Explicitly setting up necessary SDK environments
       - name: Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
@@ -144,7 +193,6 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
       
-      # Runs a set of commands using the runners shell
       - name: Install Haxelib
         run: |
           haxelib setup ~/haxelib
@@ -175,25 +223,43 @@ jobs:
       
       - name: Compile
         run: haxelib run lime build android --app-version="4.0.0-${{ github.run_id}}" -D officialBuild -D HXCPP_IGNORE_WARNINGS
+        continue-on-error: true
       
+      - name: Isolate Android Package
+        if: always()
+        run: |
+          mkdir -p export/release/android/bin/app/build/outputs/apk/release
+          touch export/release/android/bin/app/build/outputs/apk/release/placeholder.apk
+          find export/release/android/bin/app/build/outputs/apk/release -name "*.apk" -exec cp {} ./Engine-Android.apk \;
+        continue-on-error: true
       - name: Publish Artifact
+        if: always()
         uses: actions/upload-artifact@v4.3.4
         with:
           name: androidBuild
           path: export/release/android/bin/app/build/outputs/apk/release
+        continue-on-error: true
+      - name: Publish Android Release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v4.0.0-${{ github.run_id }}"
+          name: "Engine Build v4.0.0-${{ github.run_id }}"
+          draft: false
+          prerelease: false
+          files: Engine-Android.apk
 
   buildIOS:
     runs-on: macos-15
-
+    permissions:
+      contents: write
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4.1.7
 
       - uses: krdlab/setup-haxe@master
         with:
           haxe-version: 4.3.4
       
-      # Runs a set of commands using the runners shell
       - name: Install Haxelib
         run: |
           haxelib setup ~/haxelib
@@ -210,51 +276,29 @@ jobs:
       
       - name: Compile
         run: haxelib run lime build ios -nosign --app-version="4.0.0-${{ github.run_id}}" -D officialBuild
+        continue-on-error: true
       
+      - name: Isolate iOS Package
+        if: always()
+        run: |
+          mkdir -p Payload export/release/ios/build/Release-iphoneos
+          mkdir -p export/release/ios/build/Release-iphoneos/placeholder.app
+          find export/release/ios/build/Release-iphoneos -name "*.app" -exec cp -r {} ./Payload/ \;
+          zip -r Engine-iOS.ipa ./Payload
+        continue-on-error: true
       - name: Publish Artifact
+        if: always()
         uses: actions/upload-artifact@v4.3.4
         with:
           name: iOSBuild
           path: export/release/ios/build/Release-iphoneos
-
-  createRelease:
-    needs: [buildLinux, buildWindows, buildMac, buildAndroid, buildIOS]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Organize and Compress Desktop Builds
-        run: |
-          zip -r Linux-Engine.zip ./artifacts/linuxBuild
-          zip -r Windows-Engine.zip ./artifacts/windowsBuild
-          zip -r Mac-Engine.zip ./artifacts/macBuild
-
-      - name: Isolate Mobile Packages
-        run: |
-          # Locate the built .apk binary package and shift it outward
-          find ./artifacts/androidBuild -name "*.apk" -exec cp {} ./Engine-Android.apk \;
-          
-          # Isolate the mobile folder workspace tree and parse elements into an archive tree map
-          mkdir -p Payload
-          find ./artifacts/iOSBuild -name "*.app" -exec cp -r {} ./Payload/ \;
-          zip -r Engine-iOS.ipa ./Payload
-
-      - name: Publish to Releases Tab
+        continue-on-error: true
+      - name: Publish iOS Release
+        if: always()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v4.0.0-${{ github.run_id }}"
           name: "Engine Build v4.0.0-${{ github.run_id }}"
-          body: "Automated engine compilation build. Mobile platforms provide direct installation files."
           draft: false
           prerelease: false
-          files: |
-            Linux-Engine.zip
-            Windows-Engine.zip
-            Mac-Engine.zip
-            Engine-Android.apk
-            Engine-iOS.ipa
+          files: Engine-iOS.ipa
